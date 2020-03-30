@@ -10,12 +10,12 @@
 package http
 
 import (
-	"github.com/CapacitorSet/ja3-server/crypto/tls"
 	"encoding/base64"
 	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"ja3-server/crypto/tls"
 	"log"
 	"net/url"
 	"sort"

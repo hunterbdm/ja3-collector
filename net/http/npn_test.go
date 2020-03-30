@@ -7,11 +7,11 @@ package http_test
 import (
 	"bufio"
 	"bytes"
-	"github.com/CapacitorSet/ja3-server/crypto/tls"
 	"crypto/x509"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"ja3-server/crypto/tls"
 	. "net/http"
 	"net/http/httptest"
 	"strings"

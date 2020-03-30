@@ -21,7 +21,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/CapacitorSet/ja3-server/crypto/internal/cipherhw"
+	"ja3-server/crypto/internal/cipherhw"
 )
 
 const (
@@ -304,6 +304,10 @@ func (c *ClientHelloInfo) JA3() string {
 
 	vals := []string{}
 	for _, v := range c.CipherSuites {
+		if _, ok := greaseTable[v]; ok {
+			continue
+		}
+
 		vals = append(vals, fmt.Sprintf("%d", v))
 	}
 
@@ -322,6 +326,9 @@ func (c *ClientHelloInfo) JA3() string {
 
 	vals = []string{}
 	for _, v := range c.SupportedCurves {
+		if v > 100 {
+			continue
+		}
 		vals = append(vals, fmt.Sprintf("%d", v))
 	}
 

@@ -9,10 +9,10 @@ package http_test
 import (
 	"bytes"
 	"compress/gzip"
-	"github.com/CapacitorSet/ja3-server/crypto/tls"
 	"fmt"
 	"io"
 	"io/ioutil"
+	"ja3-server/crypto/tls"
 	"log"
 	"net"
 	. "net/http"

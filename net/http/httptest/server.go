@@ -7,10 +7,10 @@
 package httptest
 
 import (
-	"github.com/CapacitorSet/ja3-server/crypto/tls"
 	"crypto/x509"
 	"flag"
 	"fmt"
+	"ja3-server/crypto/tls"
 	"log"
 	"net"
 	"net/http"

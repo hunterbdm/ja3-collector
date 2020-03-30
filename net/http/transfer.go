@@ -12,7 +12,6 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http/httptrace"
-	"github.com/CapacitorSet/ja3-server/net/http/internal"
 	"net/textproto"
 	"reflect"
 	"sort"
@@ -20,6 +19,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"ja3-server/net/http/internal"
 
 	"golang.org/x/net/http/httpguts"
 )

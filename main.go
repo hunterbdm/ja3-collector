@@ -3,16 +3,33 @@ package main
 import (
 	"crypto/md5"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
-	"github.com/CapacitorSet/ja3-server/crypto/tls"
-	"github.com/CapacitorSet/ja3-server/net/http"
-	"github.com/go-redis/redis"
 	"net"
 	"os"
-	"strconv"
+	"time"
+
+	"ja3-server/aes"
+	"ja3-server/crypto/tls"
+	"ja3-server/net/http"
 )
 
-var client *redis.Client
+var (
+	cipherKey = "TMVtCVrHgP94edzjDw8jVH3g9qrPGWdD"
+)
+
+type ja3Data struct {
+	Ja3       string `json:"ja3"`
+	Hash      string `json:"hash"`
+	UserAgent string `json:"userAgent"`
+	UnixTS    int    `json:"timestamp"`
+}
+
+// ReportInternalError reports an internal error
+func ReportInternalError(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(500)
+	w.Write([]byte("Internal Server Error"))
+}
 
 func handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain; charset=utf-8")
@@ -22,73 +39,38 @@ func handler(w http.ResponseWriter, r *http.Request) {
 	hash := md5.Sum([]byte(r.JA3Fingerprint))
 	out := make([]byte, 32)
 	hex.Encode(out, hash[:])
-	if r.URL.Path == "/cached" {
-		// Prevent results from being registered twice
-		w.Header().Set("Cache-Control", "public,max-age=31556926,immutable")
-		w.Header().Set("Expires", "Mon, 30 Dec 2019 08:00:00 GMT")
-		w.Header().Set("Last-Modified", "Sun, 30 Dec 2018 08:00:00 GMT")
-		w.WriteHeader(200)
-		w.Write(out)
 
-		_, err := client.HIncrBy("freqs", string(out), 1).Result()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
-		_, err = client.HIncrBy("freqs", "total", 1).Result()
-		if err != nil {
-			fmt.Println(err)
-			return
-		}
+	payload, err := json.Marshal(ja3Data{
+		Ja3:       r.JA3Fingerprint,
+		Hash:      string(out),
+		UserAgent: r.Header.Get("User-Agent"),
+		UnixTS:    int(time.Now().Unix()),
+	})
+	if err != nil {
+		ReportInternalError(w, r)
+		return
+	}
+
+	if r.URL.Query()["skip"] != nil && r.URL.Query()["skip"][0] == "thequeue" {
+		w.WriteHeader(200)
+		w.Write([]byte(payload))
 	} else {
-		num, err := client.HGet("freqs", string(out)).Result()
+		payloadEncrypted, err := aes.Encrypt(string(payload), cipherKey)
 		if err != nil {
-			fmt.Println(err)
-			w.WriteHeader(200)
-			w.Write([]byte("error"))
+			ReportInternalError(w, r)
 			return
 		}
-		numF, err := strconv.ParseFloat(num, 64)
-		if err != nil {
-			fmt.Println(err)
-			w.WriteHeader(200)
-			w.Write([]byte("error"))
-			return
-		}
-		total, err := client.HGet("freqs", "total").Result()
-		if err != nil {
-			fmt.Println(err)
-			w.WriteHeader(200)
-			w.Write([]byte("error"))
-			return
-		}
-		totalF, err := strconv.ParseFloat(total, 64)
-		if err != nil {
-			fmt.Println(err)
-			w.WriteHeader(200)
-			w.Write([]byte("error"))
-			return
-		}
-		fmt.Fprintf(w, "%.2f", totalF/numF)
+
+		w.WriteHeader(200)
+		w.Write([]byte(payloadEncrypted))
 	}
 }
 
 func main() {
-	if len(os.Args) != 4 {
+	if len(os.Args) != 3 {
 		fmt.Printf("Syntax: %s redis_ip:redis_port path/to/certificate.pem path/to/key.pem\n", os.Args[0])
 		return
 	}
-	client = redis.NewClient(&redis.Options{
-		Addr:     os.Args[1],
-		Password: "", // no password set
-		DB:       0,  // use default DB
-	})
-
-	_, err := client.Ping().Result()
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println("Redis up.")
 
 	handler := http.HandlerFunc(handler)
 	server := &http.Server{Addr: ":8443", Handler: handler}
@@ -99,11 +81,14 @@ func main() {
 	}
 	defer ln.Close()
 
-	cert, err := tls.LoadX509KeyPair(os.Args[2], os.Args[3])
+	cert, err := tls.LoadX509KeyPair(os.Args[1], os.Args[2])
 	if err != nil {
 		panic(err)
 	}
-	tlsConfig := tls.Config{Certificates: []tls.Certificate{cert}}
+	tlsConfig := tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS12,
+	}
 
 	tlsListener := tls.NewListener(ln, &tlsConfig)
 	fmt.Println("HTTP up.")
